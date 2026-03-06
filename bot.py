@@ -7,7 +7,7 @@ import os
 import shutil
 
 TOKEN = os.getenv("DISCORD_TOKEN")
-ADMIN_ID = int(os.getenv("ADMIN_ID"))
+ADMIN_ID = int(os.getenv("1392851942480412822"))
 
 DATA_FILE = "members.json"
 BACKUP_FILE = "members_backup.json"
