@@ -110,7 +110,7 @@ def build_embed(member, info):
 
     embed.add_field(name="📅 วันหมดอายุ", value=expire.strftime("%d/%m/%Y"), inline=True)
 
-    embed.set_footer(text="MEMBER SYSTEM • 30 DAYS")
+    embed.set_footer(text="Zeno thanks for your support")
 
     return embed
 
