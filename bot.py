@@ -1,3 +1,4 @@
+```python
 import discord
 from discord.ext import commands, tasks
 from discord import app_commands
@@ -5,6 +6,7 @@ from datetime import datetime, date, timedelta, timezone
 import json
 import os
 import shutil
+import asyncio
 
 TOKEN = os.getenv("DISCORD_TOKEN")
 ADMIN_ID = int(os.getenv("ADMIN_ID"))
@@ -65,6 +67,9 @@ def calc_expire(start):
 
 def get_package(role):
 
+    if role is None:
+        return "-", "-", "-"
+
     for key in ROLE_PACKAGES:
 
         if role.name.startswith(key):
@@ -117,6 +122,9 @@ def build_embed(member, info):
 # ================= DM SYSTEM =================
 
 async def dm_user(member, text):
+
+    if member is None:
+        return
 
     try:
         await member.send(text)
@@ -181,7 +189,7 @@ async def setrole(interaction: discord.Interaction, member: discord.Member, role
 
     await dm_admin(f"✅ เพิ่ม Role ให้ {member}")
 
-# ================= RENEW =================
+# ================= RENEW (UPGRADE) =================
 
 @bot.tree.command(name="renew", description="ต่ออายุสมาชิก")
 
@@ -204,15 +212,41 @@ async def renew(interaction: discord.Interaction, member: discord.Member):
     new_expire = expire + timedelta(days=30)
 
     info["expire_date"] = new_expire.isoformat()
+    info["warned"] = False
 
     save_data(data)
 
-    await interaction.response.send_message("✅ ต่ออายุแล้ว")
+    try:
+
+        channel = bot.get_channel(info["channel_id"])
+
+        if channel:
+            msg = await channel.fetch_message(info["message_id"])
+            await msg.edit(embed=build_embed(member, info))
+
+    except:
+        pass
+
+    await dm_user(
+        member,
+        f"✅ สมาชิกของคุณถูกต่ออายุแล้ว\n\n"
+        f"วันหมดอายุใหม่ : {new_expire.strftime('%d/%m/%Y')}"
+    )
+
+    await dm_admin(
+        f"🔄 ต่ออายุสมาชิก\n"
+        f"Member : {member}\n"
+        f"หมดอายุใหม่ : {new_expire.strftime('%d/%m/%Y')}"
+    )
+
+    await interaction.response.send_message(
+        f"✅ ต่ออายุ {member.mention} เรียบร้อย\n"
+        f"หมดอายุใหม่ : {new_expire.strftime('%d/%m/%Y')}"
+    )
 
 # ================= AUTO CHECK =================
 
 @tasks.loop(minutes=10)
-
 async def check_expire():
 
     data = load_data()
@@ -229,8 +263,10 @@ async def check_expire():
     for uid, info in list(data.items()):
 
         member = guild.get_member(int(uid))
-
         role = guild.get_role(info["role_id"])
+
+        if member is None:
+            continue
 
         expire = date.fromisoformat(info["expire_date"])
 
@@ -269,9 +305,14 @@ async def check_expire():
 
             channel = bot.get_channel(info["channel_id"])
 
+            if channel is None:
+                continue
+
             msg = await channel.fetch_message(info["message_id"])
 
             await msg.edit(embed=build_embed(member, info))
+
+            await asyncio.sleep(2)
 
         except:
             pass
@@ -291,3 +332,4 @@ async def on_ready():
     print("BOT ONLINE")
 
 bot.run(TOKEN)
+```
