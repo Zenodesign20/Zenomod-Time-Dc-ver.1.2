@@ -18,7 +18,7 @@ ROLE_PACKAGES = {
     "Supreme": {"price": 300, "days": 30}
 }
 
-GIF_THUMBNAIL = "https://cdn.discordapp.com/attachments/1468621028598087843/1471249375706746890/Black_White_Minimalist_Animation_Logo_Video_1.gif"
+GIF_THUMBNAIL = "https://cdn.discordapp.com/attachments/1468621028598087843/1471260996394811605/Sponsor-Zenobot1.png?ex=69b139d4&is=69afe854&hm=343446e669659e06a6459a162ae0a764c2b56dad5a5bbb1ab2b8a9e39d15113a&"
 
 intents = discord.Intents.default()
 intents.members = True
@@ -62,7 +62,7 @@ def save_data(data):
 
 DATA = load_data()
 
-# ================= QUEUE SYSTEM =================
+# ================= QUEUE =================
 
 queue = asyncio.Queue()
 
@@ -76,21 +76,15 @@ async def queue_worker():
 
     if task["type"] == "add_role":
 
-        member = task["member"]
-        role = task["role"]
-
         try:
-            await member.add_roles(role)
+            await task["member"].add_roles(task["role"])
         except:
             pass
 
     if task["type"] == "remove_role":
 
-        member = task["member"]
-        role = task["role"]
-
         try:
-            await member.remove_roles(role)
+            await task["member"].remove_roles(task["role"])
         except:
             pass
 
@@ -175,13 +169,24 @@ class CancelView(discord.ui.View):
             await interaction.response.send_message("❌ admin only", ephemeral=True)
             return
 
-        member = interaction.message.mentions[0]
+        message_id = interaction.message.id
 
-        if str(member.id) not in DATA:
-            await interaction.response.send_message("❌ ไม่มีข้อมูล", ephemeral=True)
+        member_id = None
+        info = None
+
+        for uid, data in DATA.items():
+
+            if data.get("message_id") == message_id:
+                member_id = uid
+                info = data
+                break
+
+        if not member_id:
+
+            await interaction.response.send_message("❌ ไม่พบข้อมูลสมาชิก", ephemeral=True)
             return
 
-        info = DATA[str(member.id)]
+        member = interaction.guild.get_member(int(member_id))
 
         role = interaction.guild.get_role(info["role_id"])
 
@@ -191,7 +196,7 @@ class CancelView(discord.ui.View):
             "role": role
         })
 
-        del DATA[str(member.id)]
+        del DATA[member_id]
         save_data(DATA)
 
         await interaction.response.send_message("✅ ยกเลิก Role แล้ว")
@@ -280,6 +285,7 @@ async def renew(interaction: discord.Interaction, member: discord.Member):
         return
 
     if str(member.id) not in DATA:
+
         await interaction.response.send_message("❌ ไม่มีสมาชิก", ephemeral=True)
         return
 
@@ -299,7 +305,6 @@ async def renew(interaction: discord.Interaction, member: discord.Member):
 # ================= EXPIRE CHECK =================
 
 @tasks.loop(minutes=10)
-
 async def check_expire():
 
     now = datetime.now(timezone.utc)
@@ -330,7 +335,6 @@ async def check_expire():
             await dm_admin(f"⚠ {member} จะหมดอายุใน 3 วัน")
 
             info["warned"] = True
-
             changed = True
 
         if now >= expire_dt:
@@ -346,9 +350,7 @@ async def check_expire():
             await dm_admin(f"⛔ หมดอายุ {member}")
 
             del DATA[uid]
-
             changed = True
-
             continue
 
         try:
