@@ -119,12 +119,61 @@ def build_embed(member, info):
 
     return embed
 
+# ================= CANCEL BUTTON =================
+
+class CancelRoleView(discord.ui.View):
+
+    def __init__(self, member_id):
+        super().__init__(timeout=None)
+        self.member_id = member_id
+
+    @discord.ui.button(label="❌ ยกเลิกสมาชิก", style=discord.ButtonStyle.danger)
+    async def cancel_member(self, interaction: discord.Interaction, button: discord.ui.Button):
+
+        if interaction.user.id != ADMIN_ID:
+            await interaction.response.send_message("❌ admin only", ephemeral=True)
+            return
+
+        data = load_data()
+
+        if str(self.member_id) not in data:
+            await interaction.response.send_message("❌ ไม่มีข้อมูลสมาชิก", ephemeral=True)
+            return
+
+        info = data[str(self.member_id)]
+
+        member = interaction.guild.get_member(self.member_id)
+        role = interaction.guild.get_role(info["role_id"])
+
+        try:
+            await member.remove_roles(role)
+        except:
+            pass
+
+        del data[str(self.member_id)]
+        save_data(data)
+
+        embed = discord.Embed(
+            title="⛔ สมาชิกถูกยกเลิก",
+            description=f"Member : {member.mention}",
+            color=discord.Color.dark_red()
+        )
+
+        try:
+            await interaction.message.edit(embed=embed, view=None)
+        except:
+            pass
+
+        try:
+            await member.send("⛔ สมาชิกของคุณถูกยกเลิกแล้ว")
+        except:
+            pass
+
+        await interaction.response.send_message("✅ ยกเลิกสมาชิกเรียบร้อย", ephemeral=True)
+
 # ================= DM SYSTEM =================
 
 async def dm_user(member, text):
-
-    if member is None:
-        return
 
     try:
         await member.send(text)
@@ -165,7 +214,9 @@ async def setrole(interaction: discord.Interaction, member: discord.Member, role
 
     embed = build_embed(member, info)
 
-    await interaction.response.send_message(embed=embed)
+    view = CancelRoleView(member.id)
+
+    await interaction.response.send_message(embed=embed, view=view)
 
     msg = await interaction.original_response()
 
@@ -178,18 +229,9 @@ async def setrole(interaction: discord.Interaction, member: discord.Member, role
 
     save_data(data)
 
-    package, price, days = get_package(role)
+    await dm_user(member, "👑 คุณได้รับ Role สมาชิกแล้ว")
 
-    await dm_user(member,
-        f"👑 คุณได้รับ Role สมาชิก\n\n"
-        f"Member : {package}\n"
-        f"ราคา : {price} บาท\n"
-        f"จำนวน : {days} วัน"
-    )
-
-    await dm_admin(f"✅ เพิ่ม Role ให้ {member}")
-
-# ================= RENEW (UPGRADE) =================
+# ================= RENEW =================
 
 @bot.tree.command(name="renew", description="ต่ออายุสมาชิก")
 
@@ -222,31 +264,23 @@ async def renew(interaction: discord.Interaction, member: discord.Member):
 
         if channel:
             msg = await channel.fetch_message(info["message_id"])
-            await msg.edit(embed=build_embed(member, info))
+
+            await msg.edit(
+                embed=build_embed(member, info),
+                view=CancelRoleView(member.id)
+            )
 
     except:
         pass
 
-    await dm_user(
-        member,
-        f"✅ สมาชิกของคุณถูกต่ออายุแล้ว\n\n"
-        f"วันหมดอายุใหม่ : {new_expire.strftime('%d/%m/%Y')}"
-    )
-
-    await dm_admin(
-        f"🔄 ต่ออายุสมาชิก\n"
-        f"Member : {member}\n"
-        f"หมดอายุใหม่ : {new_expire.strftime('%d/%m/%Y')}"
-    )
-
     await interaction.response.send_message(
-        f"✅ ต่ออายุ {member.mention} เรียบร้อย\n"
-        f"หมดอายุใหม่ : {new_expire.strftime('%d/%m/%Y')}"
+        f"✅ ต่ออายุ {member.mention} แล้ว\nหมดอายุใหม่ {new_expire.strftime('%d/%m/%Y')}"
     )
 
 # ================= AUTO CHECK =================
 
 @tasks.loop(minutes=10)
+
 async def check_expire():
 
     data = load_data()
@@ -278,8 +312,6 @@ async def check_expire():
 
             await dm_user(member, "⚠ สมาชิกจะหมดอายุในอีก 3 วัน")
 
-            await dm_admin(f"⚠ {member} จะหมดอายุใน 3 วัน")
-
             info["warned"] = True
 
             changed = True
@@ -293,8 +325,6 @@ async def check_expire():
 
             await dm_user(member, "⛔ สมาชิกของคุณหมดอายุแล้ว")
 
-            await dm_admin(f"⛔ หมดอายุ {member}")
-
             del data[uid]
 
             changed = True
@@ -305,14 +335,16 @@ async def check_expire():
 
             channel = bot.get_channel(info["channel_id"])
 
-            if channel is None:
-                continue
+            if channel:
 
-            msg = await channel.fetch_message(info["message_id"])
+                msg = await channel.fetch_message(info["message_id"])
 
-            await msg.edit(embed=build_embed(member, info))
+                await msg.edit(
+                    embed=build_embed(member, info),
+                    view=CancelRoleView(member.id)
+                )
 
-            await asyncio.sleep(2)
+                await asyncio.sleep(2)
 
         except:
             pass
