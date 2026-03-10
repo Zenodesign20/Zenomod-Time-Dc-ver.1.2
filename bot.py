@@ -1,4 +1,3 @@
-```python
 import discord
 from discord.ext import commands, tasks
 from discord import app_commands
@@ -29,9 +28,7 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 # ================= JSON SAFE =================
 
 def load_data():
-
     if not os.path.exists(DATA_FILE):
-
         if os.path.exists(BACKUP_FILE):
             shutil.copy(BACKUP_FILE, DATA_FILE)
         else:
@@ -41,7 +38,6 @@ def load_data():
         with open(DATA_FILE, "r", encoding="utf-8") as f:
             return json.load(f)
     except:
-
         if os.path.exists(BACKUP_FILE):
             shutil.copy(BACKUP_FILE, DATA_FILE)
 
@@ -49,7 +45,6 @@ def load_data():
             return json.load(f)
 
 def save_data(data):
-
     with open(DATA_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=4)
 
@@ -115,7 +110,7 @@ def build_embed(member, info):
 
     embed.add_field(name="📅 วันหมดอายุ", value=expire.strftime("%d/%m/%Y"), inline=True)
 
-    embed.set_footer(text="Zeno thanks for your support")
+    embed.set_footer(text="Welcome to Member Zeno[MOD]")
 
     return embed
 
@@ -364,4 +359,3 @@ async def on_ready():
     print("BOT ONLINE")
 
 bot.run(TOKEN)
-```
