@@ -5,7 +5,6 @@ from datetime import datetime, date, timedelta, timezone
 import json
 import os
 import shutil
-import asyncio
 
 TOKEN = os.getenv("DISCORD_TOKEN")
 ADMIN_ID = int(os.getenv("ADMIN_ID"))
@@ -18,7 +17,7 @@ ROLE_PACKAGES = {
     "Supreme": {"price": 300, "days": 30}
 }
 
-GIF_THUMBNAIL = "https://cdn.discordapp.com/attachments/1468621028598087843/1481027347124719707/member.png?ex=69b1d1b3&is=69b08033&hm=caa15aad048d4304c91557cd4fd981fe79b26de35172b011e3bdd6ce340d9552&"
+GIF_THUMBNAIL = "https://cdn.discordapp.com/attachments/1468621028598087843/1471249375706746890/Black_White_Minimalist_Animation_Logo_Video_1.gif"
 
 intents = discord.Intents.default()
 intents.members = True
@@ -28,7 +27,9 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 # ================= JSON SAFE =================
 
 def load_data():
+
     if not os.path.exists(DATA_FILE):
+
         if os.path.exists(BACKUP_FILE):
             shutil.copy(BACKUP_FILE, DATA_FILE)
         else:
@@ -38,49 +39,19 @@ def load_data():
         with open(DATA_FILE, "r", encoding="utf-8") as f:
             return json.load(f)
     except:
+
         if os.path.exists(BACKUP_FILE):
             shutil.copy(BACKUP_FILE, DATA_FILE)
 
         with open(DATA_FILE, "r", encoding="utf-8") as f:
             return json.load(f)
 
-
 def save_data(data):
-    tmp = "members.tmp"
 
-    with open(tmp, "w", encoding="utf-8") as f:
+    with open(DATA_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=4)
 
-    os.replace(tmp, DATA_FILE)
     shutil.copy(DATA_FILE, BACKUP_FILE)
-
-
-DATA = load_data()
-
-# ================= QUEUE SYSTEM =================
-
-queue = asyncio.Queue()
-
-@tasks.loop(seconds=1)
-async def queue_worker():
-
-    if queue.empty():
-        return
-
-    task = await queue.get()
-
-    if task["type"] == "add_role":
-        try:
-            await task["member"].add_roles(task["role"])
-        except:
-            pass
-
-    if task["type"] == "remove_role":
-        try:
-            await task["member"].remove_roles(task["role"])
-        except:
-            pass
-
 
 # ================= TIME =================
 
@@ -90,18 +61,17 @@ def parse_date(text):
 def calc_expire(start):
     return start + timedelta(days=29)
 
-
 # ================= PACKAGE =================
 
 def get_package(role):
 
     for key in ROLE_PACKAGES:
+
         if role.name.startswith(key):
             p = ROLE_PACKAGES[key]
             return key, p["price"], p["days"]
 
     return role.name, "-", "-"
-
 
 # ================= EMBED =================
 
@@ -144,16 +114,17 @@ def build_embed(member, info):
 
     return embed
 
-
 # ================= DM SYSTEM =================
 
 async def dm_user(member, text):
+
     try:
         await member.send(text)
     except:
         pass
 
 async def dm_admin(text):
+
     admin = bot.get_user(ADMIN_ID)
 
     if admin:
@@ -161,56 +132,6 @@ async def dm_admin(text):
             await admin.send(text)
         except:
             pass
-
-
-# ================= BUTTON =================
-
-class CancelView(discord.ui.View):
-
-    def __init__(self):
-        super().__init__(timeout=None)
-
-    @discord.ui.button(label="❌ ยกเลิก Role", style=discord.ButtonStyle.red, custom_id="cancel_role")
-
-    async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
-
-        if interaction.user.id != ADMIN_ID:
-            await interaction.response.send_message("❌ admin only", ephemeral=True)
-            return
-
-        message_id = interaction.message.id
-
-        member_id = None
-        info = None
-
-        for uid, data in DATA.items():
-            if data.get("message_id") == message_id:
-                member_id = uid
-                info = data
-                break
-
-        if not member_id:
-            await interaction.response.send_message("❌ ไม่พบข้อมูลสมาชิก", ephemeral=True)
-            return
-
-        member = interaction.guild.get_member(int(member_id))
-
-        role = interaction.guild.get_role(info["role_id"])
-
-        await queue.put({
-            "type": "remove_role",
-            "member": member,
-            "role": role
-        })
-
-        await dm_user(member, "⛔ Role สมาชิกของคุณถูกยกเลิกแล้ว")
-        await dm_admin(f"❌ ยกเลิก Role ของ {member}")
-
-        del DATA[member_id]
-        save_data(DATA)
-
-        await interaction.response.send_message("✅ ยกเลิก Role แล้ว")
-
 
 # ================= SET ROLE =================
 
@@ -225,11 +146,7 @@ async def setrole(interaction: discord.Interaction, member: discord.Member, role
     start = parse_date(start_date)
     expire = calc_expire(start)
 
-    await queue.put({
-        "type": "add_role",
-        "member": member,
-        "role": role
-    })
+    await member.add_roles(role)
 
     info = {
         "role_id": role.id,
@@ -240,15 +157,18 @@ async def setrole(interaction: discord.Interaction, member: discord.Member, role
 
     embed = build_embed(member, info)
 
-    await interaction.response.send_message(embed=embed, view=CancelView())
+    await interaction.response.send_message(embed=embed)
 
     msg = await interaction.original_response()
 
     info["channel_id"] = msg.channel.id
     info["message_id"] = msg.id
 
-    DATA[str(member.id)] = info
-    save_data(DATA)
+    data = load_data()
+
+    data[str(member.id)] = info
+
+    save_data(data)
 
     package, price, days = get_package(role)
 
@@ -261,7 +181,6 @@ async def setrole(interaction: discord.Interaction, member: discord.Member, role
 
     await dm_admin(f"✅ เพิ่ม Role ให้ {member}")
 
-
 # ================= RENEW =================
 
 @bot.tree.command(name="renew", description="ต่ออายุสมาชิก")
@@ -272,11 +191,13 @@ async def renew(interaction: discord.Interaction, member: discord.Member):
         await interaction.response.send_message("❌ admin only", ephemeral=True)
         return
 
-    if str(member.id) not in DATA:
+    data = load_data()
+
+    if str(member.id) not in data:
         await interaction.response.send_message("❌ ไม่มีสมาชิก", ephemeral=True)
         return
 
-    info = DATA[str(member.id)]
+    info = data[str(member.id)]
 
     expire = date.fromisoformat(info["expire_date"])
 
@@ -284,16 +205,17 @@ async def renew(interaction: discord.Interaction, member: discord.Member):
 
     info["expire_date"] = new_expire.isoformat()
 
-    save_data(DATA)
+    save_data(data)
 
     await interaction.response.send_message("✅ ต่ออายุแล้ว")
-
 
 # ================= AUTO CHECK =================
 
 @tasks.loop(minutes=10)
 
 async def check_expire():
+
+    data = load_data()
 
     now = datetime.now(timezone.utc)
 
@@ -304,7 +226,7 @@ async def check_expire():
 
     changed = False
 
-    for uid, info in list(DATA.items()):
+    for uid, info in list(data.items()):
 
         member = guild.get_member(int(uid))
 
@@ -319,25 +241,28 @@ async def check_expire():
         if remain.days == 3 and not info["warned"]:
 
             await dm_user(member, "⚠ สมาชิกจะหมดอายุในอีก 3 วัน")
+
             await dm_admin(f"⚠ {member} จะหมดอายุใน 3 วัน")
 
             info["warned"] = True
+
             changed = True
 
         if now >= expire_dt:
 
-            await queue.put({
-                "type": "remove_role",
-                "member": member,
-                "role": role
-            })
+            try:
+                await member.remove_roles(role)
+            except:
+                pass
 
             await dm_user(member, "⛔ สมาชิกของคุณหมดอายุแล้ว")
+
             await dm_admin(f"⛔ หมดอายุ {member}")
 
-            del DATA[uid]
+            del data[uid]
 
             changed = True
+
             continue
 
         try:
@@ -346,14 +271,13 @@ async def check_expire():
 
             msg = await channel.fetch_message(info["message_id"])
 
-            await msg.edit(embed=build_embed(member, info), view=CancelView())
+            await msg.edit(embed=build_embed(member, info))
 
         except:
             pass
 
     if changed:
-        save_data(DATA)
-
+        save_data(data)
 
 # ================= READY =================
 
@@ -362,12 +286,8 @@ async def on_ready():
 
     await bot.tree.sync()
 
-    bot.add_view(CancelView())
-
-    queue_worker.start()
     check_expire.start()
 
     print("BOT ONLINE")
-
 
 bot.run(TOKEN)
